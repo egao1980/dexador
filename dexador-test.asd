@@ -15,4 +15,7 @@
   :components ((:module "t"
                 :components
                 ((:file "dexador"))))
-  :perform (test-op (op c) (symbol-call '#:rove '#:run c)))
+  ;; Fail the test-op on a failing test, so CI (cl-repo test) goes red.
+  :perform (test-op (op c)
+             (unless (symbol-call '#:rove '#:run c)
+               (error "dexador-test failed"))))
