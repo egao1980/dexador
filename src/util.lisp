@@ -95,13 +95,23 @@
 
 (defparameter *header-buffer* nil)
 
-(defun write-first-line (method uri version &optional (buffer *header-buffer*))
+(defun write-first-line (method uri version &optional (buffer *header-buffer*) absolute-form)
+  "Write the request line. ABSOLUTE-FORM true (a plain-HTTP request sent to
+an HTTP proxy) writes the target as scheme://host[:port]/path?query, which
+RFC 9112 section 3.2.2 requires for a request to a proxy; otherwise the
+origin-form /path?query. The absolute-form never carries userinfo."
   (fast-write-sequence (ascii-string-to-octets (string method)) buffer)
   (fast-write-byte #.(char-code #\Space) buffer)
+  (when absolute-form
+    (fast-write-sequence (ascii-string-to-octets
+                          (format nil "~(~A~)://~A"
+                                  (quri:uri-scheme uri)
+                                  (quri:uri-authority (quri:copy-uri uri :userinfo nil))))
+                         buffer))
   (fast-write-sequence (ascii-string-to-octets
-                         (format nil "~A~:[~;~:*?~A~]"
-                                 (or (uri-path uri) "/")
-                                 (uri-query uri)))
+                        (format nil "~A~:[~;~:*?~A~]"
+                                (or (uri-path uri) "/")
+                                (uri-query uri)))
                        buffer)
   (fast-write-byte #.(char-code #\Space) buffer)
   (fast-write-sequence (ecase version

@@ -56,7 +56,9 @@
   (skip "Skipped proxy tests on Windows")
   #-windows
   (testing-app ("proxy (http) case")
-      ; proxy behavior is same as direct connection if http
+      ;; The app plays the proxy: it echoes the Host header and the request
+      ;; target. A plain-HTTP request to a proxy carries the target in
+      ;; absolute-form (RFC 9112 section 3.2.2), which forward proxies need.
       (lambda (env)
         (let ((body (format nil "~A~%~A"
                             (gethash "host" (getf env :headers))
@@ -68,7 +70,22 @@
                    :headers '((:x-foo . "ppp"))
                    :proxy (localhost))
         (ok (eql code 200))
-        (ok (equal body (format nil "lisp.org~%/foo")))))
+        (ok (equal body (format nil "lisp.org~%http://lisp.org/foo")))))
+    (testing "GET with a port, a query and userinfo"
+      (multiple-value-bind (body code)
+          (dex:get "http://user:pass@lisp.org:8080/foo?a=1&b=2"
+                   :proxy (localhost))
+        (ok (eql code 200))
+        (ok (equal (subseq body (1+ (position #\Newline body)))
+                   "http://lisp.org:8080/foo?a=1&b=2")
+            "the absolute-form keeps the port and the query, not the userinfo")
+        (ok (equal (subseq body 0 (position #\Newline body)) "lisp.org:8080")
+            "Host is host:port, never the userinfo (RFC 9110 section 7.2)")))
+    (testing "a direct request keeps the origin-form"
+      (multiple-value-bind (body code)
+          (dex:get (localhost "/foo?a=1"))
+        (ok (eql code 200))
+        (ok (equal (subseq body (1+ (position #\Newline body))) "/foo?a=1"))))
     (testing "HEAD"
       (multiple-value-bind (body code)
           (dex:head "http://lisp.org/foo"
@@ -80,13 +97,13 @@
           (dex:put "http://lisp.org/foo"
                    :proxy (localhost))
         (ok (eql code 200))
-        (ok (equal body (format nil "lisp.org~%/foo")))))
+        (ok (equal body (format nil "lisp.org~%http://lisp.org/foo")))))
     (testing "DELETE"
       (multiple-value-bind (body code)
           (dex:delete "http://lisp.org/foo"
                       :proxy (localhost))
         (ok (eql code 200))
-        (ok (equal body (format nil "lisp.org~%/foo")))))))
+        (ok (equal body (format nil "lisp.org~%http://lisp.org/foo")))))))
 
 (deftest proxy-socks5-tests
   #+windows

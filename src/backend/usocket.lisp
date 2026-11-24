@@ -526,7 +526,10 @@
                               (null (cdr content-length)))))
            (first-line-data
              (with-fast-output (buffer)
-               (write-first-line method uri version buffer)))
+               (write-first-line method uri version buffer
+                                 ;; RFC 9112 3.2.2: absolute-form to an HTTP proxy
+                                 ;; (HTTPS goes through a CONNECT tunnel instead).
+                                 (and proxy (string= (uri-scheme uri) "http")))))
            (headers-data
              (flet ((write-header* (name value)
                       (let ((header (assoc name headers :test #'string-equal)))
@@ -537,7 +540,7 @@
                       (values)))
                (with-header-output (buffer)
                  (write-header* :user-agent #.*default-user-agent*)
-                 (write-header* :host (uri-authority uri))
+                 (write-header* :host (uri-authority (quri:copy-uri uri :userinfo nil)))
                  (write-header* :accept "*/*")
                  (cond
                    ((and keep-alive
@@ -731,7 +734,8 @@
                               (setq uri (merge-uris location-uri uri))
                               (setq first-line-data
                                     (with-fast-output (buffer)
-                                      (write-first-line method uri version buffer)))
+                                      (write-first-line method uri version buffer
+                                                        (and proxy (string= (uri-scheme uri) "http")))))
                               (when cookie-jar
                                 ;; Rebuild cookie-headers.
                                 (setq cookie-headers (build-cookie-headers uri cookie-jar)))
